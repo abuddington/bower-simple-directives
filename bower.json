@@ -1,0 +1,24 @@
+{
+  "name": "simple-directives",
+  "homepage": "https://github.com/abuddington/bower-simple-directives",
+  "authors": [
+    "Austin Buddington <austin.j.buddington@gmail.com>"
+  ],
+  "description": "simple web components for angular",
+  "main": "./simple-directives.js",
+  "moduleType": [],
+  "keywords": [
+    "angular",
+    "directives",
+    "simple",
+    "components"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
