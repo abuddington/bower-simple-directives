@@ -6,7 +6,6 @@
     .directive('sThead', sThead)
     .directive('sTbody', sTbody)
     .directive('sRow', sRow)
-    .directive('sRowRepeat', sRowRepeat)
     .directive('sColumn', sColumn)
     .directive('sCell', sCell);
 
@@ -15,34 +14,60 @@
         restrict: 'E',
         scope: {
           sModelList: '=',
-          onSortChange: '='
+          onSortChange: '=',
+          defaultSortKey: '=',
+          defaultSortOrder: '='
         },
         replace: true,
         transclude: true,
         template: '<table class="s-table" ng-transclude></table>',
-        controller: ['$scope', '$element', '$attrs', function ($scope, $element, $attrs) {
+        controller: ['$scope', '$element', '$attrs', '$rootScope', function ($scope, $element, $attrs, $rootScope) {
           var _this = this;
-          _this.sModelList   = $scope.sModelList;
-          _this.onSortChange = $scope.onSortChange;
-          _this.columns      = [];
+          _this.sModelList        = $scope.sModelList;
+          _this.onSortChange      = $scope.onSortChange;
+          _this.defaultSortKey    = $scope.defaultSortKey;
+          _this.defaultSortOrder  = $scope.defaultSortOrder || 'asc';
+          _this.columns           = [];
+          _this.orderTranslations = {
+            asc: false,
+            desc: true,
+            false: 'asc',
+            true: 'desc'
+          };
 
-          _this.reOrderBy = function(field, reversed) {
-            var orderTranslations = {
-              false: 'asc',
-              true: 'desc'
-            };
+          $rootScope.$on('s-table:ready', function() {
+            if(_this.defaultSortKey) {
+              _this.applyOrder(_this.defaultSortKey, _this.orderTranslations[_this.defaultSortOrder]);
+            }
+          });
 
+          _this.registerColumn = function(column) {
+            _this.columns.push(column);
+          };
+
+          _this.applyOrder = function(field, reversed) {
             _this.sOrderBy = field;
             _this.sOrderReverse = reversed;
 
             _this.columns.forEach(function(column) {
-              column.removeClass('ascending');
-              column.removeClass('descending');
+              column.removeOrderClasses();
+              if(column.sOrderBy === field) {
+                column.addOrderClass(_this.orderTranslations[reversed] + 'ending');
+              }
             });
 
-            $scope.$apply();
-            return (_this.onSortChange || angular.noop)(field, orderTranslations[reversed]);
+            try {
+              $scope.$apply();
+            } catch(e) {
+            }
+            return (_this.onSortChange || angular.noop)(field, _this.orderTranslations[reversed]);
           };
+
+          $scope.$watchCollection('sTableCtrl.columns', function(newState, oldState) {
+            if(newState.length === oldState.length) {
+              $rootScope.$broadcast('s-table:ready');
+            }
+          });
         }],
         require: '?sTable',
         controllerAs: 'sTableCtrl'
@@ -93,48 +118,46 @@
       };
     }
 
-    function sRowRepeat($compile) {
-     return {
-       restrict: 'E',
-       transclude: true,
-       require: '^sTable',
-       controller: ['$scope', '$element', '$attrs', '$transclude', function($scope, $element, $attrs, $transclude) {
-         $scope.sTableCtrl = $scope.$parent.sTableCtrl;
-       }],
-       link: function(scope, element, attributes, controller, transclude) {
-        transclude(function(contents, skope) {
-          element.append(angular.element('<s-row ng-repeat="model in sTableCtrl.sModelList"></s-row>').append(contents));
-        });
-        element.replaceWith($compile(element.contents())(scope));
-       }
-     };
-    }
-
     function sColumn() {
       return {
         restrict: 'E',
-        scope: false,
+        scope: {
+          sOrderBy: '@'
+        },
         replace: true,
+        bindToController: true,
         require: '^sTable',
         transclude: true,
+        controllerAs: 'sColumnCtrl',
         controller: ['$scope', '$element', '$attrs', function($scope, $element, $attrs) {
+          var _this = this;
+          _this.sOrderBy = $scope.sOrderBy;
+          _this.sortOrder = false;
+          _this.removeOrderClasses = function() {
+            $element.removeClass('ascending');
+            $element.removeClass('descending');
+          };
+
+          _this.addOrderClass = function(className) {
+            $element.addClass(className);
+          };
+
+          _this.toggleSortOrder = function() {
+            return _this.sortOrder = !_this.sortOrder;
+          };
+
+          _this.handleClick = function(e, onClick) {
+            e.preventDefault();
+            return onClick(_this.sOrderBy, _this.toggleSortOrder());
+          };
         }],
         template: '<th class="s-column" ng-transclude></th>',
         link: function(scope, element, attributes, controller, transclude) {
-          controller.columns.push(element);
-          var sortOrder = false;
+          controller.registerColumn(scope.sColumnCtrl);
 
           if(attributes.sOrderBy) {
-            element.on('click', function(event) {
-              controller.reOrderBy(attributes.sOrderBy, sortOrder);
-              if(sortOrder) {
-                element.removeClass('ascending');
-                element.addClass('descending');
-              } else {
-                element.addClass('ascending');
-                element.removeClass('descending');
-              }
-              sortOrder = !sortOrder;
+            element.on('click', function(e) {
+              return scope.sColumnCtrl.handleClick(e, controller.applyOrder);
             });
           }
         }
