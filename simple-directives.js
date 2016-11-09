@@ -183,3 +183,4 @@
       'simple-directives.tables'
     ])
 })()
+;
